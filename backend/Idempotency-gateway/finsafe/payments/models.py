@@ -15,11 +15,12 @@ class IdempotencyRecord(models.Model):
     status_code = models.IntegerField(default=200)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
-    
+    expires_at = models.DateTimeField(null=True, blank=True)
     class Meta:
         indexes = [
             models.Index(fields=['idempotency_key']),
             models.Index(fields=['created_at']),
+            models.Index(fields=['expires_at']),
         ]
     
     def __str__(self):

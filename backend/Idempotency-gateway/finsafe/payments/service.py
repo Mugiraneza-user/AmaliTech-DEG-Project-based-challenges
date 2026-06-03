@@ -90,7 +90,13 @@ class IdempotencyService:
             existing_record = IdempotencyRecord.objects.get(
                 idempotency_key=idempotency_key
             )
-            
+            if existing_record.expires_at and existing_record.expires_at < timezone.now():
+    # optional cleanup
+                existing_record.delete()  
+                return {
+                'error': 'Idempotency key expired',
+                'status_code': 410
+             }
             # Verify request body matches
             existing_hash = IdempotencyService.generate_request_hash(
                 existing_record.request_body
@@ -154,7 +160,8 @@ class IdempotencyService:
                     # response_body=response_data,
                     request_body=json.loads(json.dumps(request_body, default=str)),
                     response_body=json.loads(json.dumps(response_data, default=str)),
-                    status_code=200
+                    status_code=200,
+                    expires_at=timezone.now() + timedelta(minutes=10)  # or 5
                 )
                 
                 return {

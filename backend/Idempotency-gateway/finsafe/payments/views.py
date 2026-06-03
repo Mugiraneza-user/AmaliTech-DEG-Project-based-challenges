@@ -1,0 +1,88 @@
+import time
+from rest_framework.views import APIView
+from rest_framework.response import Response
+from rest_framework import status
+from django.utils.decorators import method_decorator
+from django.views.decorators.csrf import csrf_exempt
+from .serializers import PaymentRequestSerializer, ErrorResponseSerializer
+from .service import IdempotencyService
+
+@method_decorator(csrf_exempt, name='dispatch')
+class ProcessPaymentView(APIView):
+    """
+    Payment processing endpoint with idempotency support
+    """
+    
+    def post(self, request):
+        """
+        Handle POST /api/process-payment
+        """
+        # Step 1: Extract and validate Idempotency-Key header
+        idempotency_key = request.headers.get('Idempotency-Key')
+        
+        if not idempotency_key:
+            return Response(
+                {'error': 'Idempotency-Key header is required'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        # Step 2: Validate request body
+        serializer = PaymentRequestSerializer(data=request.data)
+        if not serializer.is_valid():
+            return Response(
+                {'error': f'Invalid request body: {serializer.errors}'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        # Step 3: Extract validated data
+        amount = serializer.validated_data['amount']
+        currency = serializer.validated_data['currency']
+        
+        # Step 4: Define payment processing callback
+        def process_payment(request_body):
+            """Callback that actually processes the payment"""
+            return IdempotencyService.simulate_payment_processing(
+                amount=request_body['amount'],
+                currency=request_body['currency']
+            )
+        
+        # Step 5: Execute idempotency logic
+        result = IdempotencyService.get_or_create_record(
+            idempotency_key=idempotency_key,
+            request_body=serializer.validated_data,
+            process_callback=process_payment
+        )
+        
+        # Step 6: Handle errors
+        if 'error' in result:
+            return Response(
+                {'error': result['error']},
+                status=result['status_code']
+            )
+        
+        # Step 7: Return success response with cache header
+        response = Response(
+            result['response'],
+            status=result['status_code']
+        )
+        
+        # Add cache header
+        if result.get('cached', False):
+            response['X-Cache-Hit'] = 'true'
+        else:
+            response['X-Cache-Hit'] = 'false'
+        
+        return response
+
+class HealthCheckView(APIView):
+    """
+    Health check endpoint
+    """
+    
+    def get(self, request):
+        return Response({
+            'status': 'OK',
+            'service': 'Idempotency Gateway',
+            'timestamp': time.time(),
+            'version': '1.0.0'
+        })

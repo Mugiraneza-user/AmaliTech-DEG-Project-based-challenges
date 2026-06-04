@@ -85,13 +85,13 @@ class IdempotencyService:
         """
         request_hash = IdempotencyService.generate_request_hash(request_body)
         
-        # Step 1: Check if already processed
+        # 1: Check if already processed
         try:
             existing_record = IdempotencyRecord.objects.get(
                 idempotency_key=idempotency_key
             )
             if existing_record.expires_at and existing_record.expires_at < timezone.now():
-    # optional cleanup
+    
                 existing_record.delete()  
                 return {
                 'error': 'Idempotency key expired',
@@ -116,7 +116,7 @@ class IdempotencyService:
             }
             
         except IdempotencyRecord.DoesNotExist:
-            # Step 2: Acquire lock to prevent race condition
+            #  2: Acquire lock to prevent race condition
             lock_acquired = IdempotencyService.acquire_lock(idempotency_key)
             
             if not lock_acquired:
@@ -142,17 +142,17 @@ class IdempotencyService:
                     except IdempotencyRecord.DoesNotExist:
                         continue
                 
-                # Timeout - return error
+                
                 return {
                     'error': 'Request processing timeout. Please try again.',
                     'status_code': 504
                 }
             
             try:
-                # Step 3: Process the payment
+                # 3: Process the payment
                 response_data = process_callback(request_body)
                 
-                # Step 4: Store the result
+                # 4: Store the result
                 record = IdempotencyRecord.objects.create(
                     idempotency_key=idempotency_key,
                     request_body_hash=request_hash,
@@ -161,7 +161,7 @@ class IdempotencyService:
                     request_body=json.loads(json.dumps(request_body, default=str)),
                     response_body=json.loads(json.dumps(response_data, default=str)),
                     status_code=200,
-                    expires_at=timezone.now() + timedelta(minutes=10)  # or 5
+                    expires_at=timezone.now() + timedelta(minutes=10)  
                 )
                 
                 return {
@@ -171,5 +171,5 @@ class IdempotencyService:
                 }
                 
             finally:
-                # Always release the lock
+               
                 IdempotencyService.release_lock(idempotency_key)

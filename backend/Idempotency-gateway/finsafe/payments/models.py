@@ -2,7 +2,7 @@ from django.db import models
 from django.utils import timezone
 import json
 
-# Create your models here.
+
 
 class IdempotencyRecord(models.Model):
     """

@@ -17,7 +17,7 @@ class ProcessPaymentView(APIView):
         """
         Handle POST /api/process-payment
         """
-        # Step 1: Extract and validate Idempotency-Key header
+        #  1: Extract and validate Idempotency-Key header
         idempotency_key = request.headers.get('Idempotency-Key')
         
         if not idempotency_key:
@@ -26,7 +26,7 @@ class ProcessPaymentView(APIView):
                 status=status.HTTP_400_BAD_REQUEST
             )
         
-        # Step 2: Validate request body
+        # 2: Validate request body
         serializer = PaymentRequestSerializer(data=request.data)
         if not serializer.is_valid():
             return Response(
@@ -34,11 +34,11 @@ class ProcessPaymentView(APIView):
                 status=status.HTTP_400_BAD_REQUEST
             )
         
-        # Step 3: Extract validated data
+        # 3: Extract validated data
         amount = serializer.validated_data['amount']
         currency = serializer.validated_data['currency']
         
-        # Step 4: Define payment processing callback
+        # 4: Define payment processing callback
         def process_payment(request_body):
             """Callback that actually processes the payment"""
             return IdempotencyService.simulate_payment_processing(
@@ -46,21 +46,21 @@ class ProcessPaymentView(APIView):
                 currency=request_body['currency']
             )
         
-        # Step 5: Execute idempotency logic
+        #  5: Execute idempotency logic
         result = IdempotencyService.get_or_create_record(
             idempotency_key=idempotency_key,
             request_body=serializer.validated_data,
             process_callback=process_payment
         )
         
-        # Step 6: Handle errors
+        #  6: Handle errors
         if 'error' in result:
             return Response(
                 {'error': result['error']},
                 status=result['status_code']
             )
         
-        # Step 7: Return success response with cache header
+        #  7: Return success response with cache header
         response = Response(
             result['response'],
             status=result['status_code']
